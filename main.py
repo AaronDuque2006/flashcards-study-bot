@@ -1,5 +1,7 @@
 # backend/main.py
+from typing import Annotated
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -11,7 +13,6 @@ from database import init_db, get_session
 from models import User, FlashcardSet
 from schemas import (
     UserCreate,
-    UserLogin,
     UserResponse,
     Token,
     TextRequest,
@@ -74,14 +75,17 @@ def signup(user_data: UserCreate, session: Session = Depends(get_session)):
 
 
 @app.post("/login", response_model=Token)
-def login(credentials: UserLogin, session: Session = Depends(get_session)):
-    """Iniciar sesión y obtener token JWT"""
-    user = session.exec(select(User).where(User.email == credentials.email)).first()
+def login(
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    session: Session = Depends(get_session),
+):
+    """Iniciar sesión y obtener token JWT. Usa email como username."""
+    user = session.exec(select(User).where(User.email == form_data.username)).first()
 
-    if not user or not verify_password(credentials.password, user.password_hash):
+    if not user or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
-    token = create_access_token(data={"sub": user.id})
+    token = create_access_token(data={"sub": str(user.id)})
     return Token(access_token=token)
 
 
@@ -92,7 +96,7 @@ def login(credentials: UserLogin, session: Session = Depends(get_session)):
 async def generate_flashcards(
     request: TextRequest, current_user: User = Depends(get_current_user)
 ):
-    # Generar flashcards usando Gemini AI (requiere autenticación)
+    """Generar flashcards usando Gemini AI (requiere autenticación)"""
     try:
         prompt = f"""
         Actúa como un profesor experto. Analiza el siguiente texto y genera 5 preguntas clave con sus respuestas para estudiar.
@@ -109,7 +113,7 @@ async def generate_flashcards(
         """
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.0-flash-001",
             contents=prompt,
         )
         clean_text = response.text.replace("```json", "").replace("```", "").strip()
@@ -126,7 +130,7 @@ def save_flashcards(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    # Guardar un set de flashcards para el usuario autenticado
+    """Guardar un set de flashcards para el usuario autenticado"""
     new_set = FlashcardSet(
         topic=data.topic, content_json=data.flashcards_json, user_id=current_user.id
     )
