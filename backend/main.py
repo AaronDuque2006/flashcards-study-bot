@@ -5,7 +5,7 @@ import traceback
 from typing import Annotated
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from google import genai
@@ -48,7 +48,7 @@ def on_startup():
 # Auth endpoints
 
 
-@app.post("/signup", response_model=UserResponse)
+@app.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def signup(user_data: UserCreate, session: Session = Depends(get_session)):
     """Registrar un nuevo usuario"""
     try:
@@ -74,7 +74,7 @@ def signup(user_data: UserCreate, session: Session = Depends(get_session)):
         raise HTTPException(status_code=500, detail=error_detail)
 
 
-@app.post("/login", response_model=Token)
+@app.post("/login", response_model=Token, status_code=status.HTTP_200_OK)
 def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: Session = Depends(get_session),
@@ -92,7 +92,7 @@ def login(
 # Flashcard Endpoints
 
 
-@app.post("/generate")
+@app.post("/generate", status_code=status.HTTP_200_OK)
 async def generate_flashcards(
     request: TextRequest, current_user: User = Depends(get_current_user)
 ):
@@ -124,7 +124,7 @@ async def generate_flashcards(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/save-flashcards/")
+@app.post("/save-flashcards/", status_code=status.HTTP_201_CREATED)
 def save_flashcards(
     data: FlashcardSaveRequest,
     current_user: User = Depends(get_current_user),
@@ -144,7 +144,7 @@ def save_flashcards(
     return {"message": "Guardado exitosamente", "id": new_set.id}
 
 
-@app.get("/my-flashcards/")
+@app.get("/my-flashcards/", status_code=status.HTTP_200_OK)
 def get_my_flashcards(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
